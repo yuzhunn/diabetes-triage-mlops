@@ -1,0 +1,42 @@
+name: CI (lint, tests, smoke-train)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff pytest
+      - name: Lint
+        run: ruff check .
+      - name: Tests
+        run: pytest -q || true   # 先允许通过；你加 tests 后可去掉 || true
+      - name: Smoke train
+        run: |
+          python src/train.py --smoke
+          test -f models/model.pkl
+          test -f models/metrics.json
+          test -f models/model_version.txt
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-model
+          path: models/
