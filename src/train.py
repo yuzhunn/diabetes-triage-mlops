@@ -1,4 +1,6 @@
-import argparse, json, subprocess, sys
+import argparse
+import json
+import subprocess
 from pathlib import Path
 import numpy as np
 from sklearn.datasets import load_diabetes

@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
-from typing import Literal
-import joblib, json
+import joblib
 from pathlib import Path
 
 # ---- 输入数据模式（10 个特征）----
