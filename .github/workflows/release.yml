@@ -49,8 +49,7 @@ jobs:
         run: |
           python -m pip install -U pip
           pip install -r requirements.txt
-          if [ "${{ steps.vars.outputs.tag }}" = "v0.1" ]; then MODEL=linear; else MODEL=ridge; fi
-          python src/train.py --model $MODEL
+          python src/train.py
           cat models/metrics.json
 
       - name: Login GHCR
