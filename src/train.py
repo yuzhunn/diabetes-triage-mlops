@@ -9,6 +9,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics import mean_squared_error
+from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.ensemble import RandomForestRegressor
 import joblib
 
 def short_git_sha() -> str:
@@ -51,3 +53,16 @@ if __name__ == "__main__":
     # 固定随机性
     np.random.seed(42)
     main(smoke=args.smoke)
+
+parser.add_argument("--model", choices=["linear", "ridge", "rf"], default="linear")
+
+def build_model(kind: str):
+    if kind == "linear":
+        return make_pipeline(StandardScaler(with_mean=True), LinearRegression())
+    if kind == "ridge":
+        return make_pipeline(StandardScaler(with_mean=True), Ridge(alpha=1.0, random_state=42))
+    if kind == "rf":
+        return RandomForestRegressor(n_estimators=200, random_state=42)
+    raise ValueError(f"unknown model kind: {kind}")
+
+pipe = build_model(args.model)
