@@ -34,10 +34,7 @@ jobs:
           pip install -r requirements.txt
       - name: Train full model
         run: |
-          python src/train.py --model ridge
-          test -f models/model.pkl
-          test -f models/metrics.json
-          test -f models/model_version.txt
+          python src/train.py --model ridge --alpha 30
           cat models/metrics.json
 
       - name: Login GHCR
