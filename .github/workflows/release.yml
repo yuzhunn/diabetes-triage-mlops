@@ -44,7 +44,7 @@ jobs:
           else
             echo "tag=latest" >> $GITHUB_OUTPUT
           fi
-          echo "Resolved TAG=$(sed -n 's/^tag=//p' $GITHUB_OUTPUT)"
+          echo "Resolved TAG=${{ steps.vars.outputs.tag }}"
 
       - name: Install system tools (jq, curl)
         run: |
@@ -83,11 +83,10 @@ jobs:
           TAG='${{ steps.vars.outputs.tag }}'
           docker build --no-cache -t $IMAGE:${TAG} -t $IMAGE:latest .
 
-      - name: Smoke test container
+      - name: Smoke test container (run local image; do NOT pull)
         run: |
           set -e
           TAG='${{ steps.vars.outputs.tag }}'
-          docker pull $IMAGE:$TAG
           docker run -d -p ${PORT}:${PORT} --name svc $IMAGE:${TAG}
           for i in {1..30}; do
             sleep 1
