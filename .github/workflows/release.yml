@@ -27,7 +27,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -52,19 +53,23 @@ jobs:
           sudo apt-get install -y jq curl
 
       - name: Install deps & Train (choose model by tag)
+        shell: bash
         run: |
           python -m pip install -U pip
           pip install -r requirements.txt
-          TAG='${{ steps.vars.outputs.tag }}'
+
+          TAG="${{ steps.vars.outputs.tag }}"
           if [ "$TAG" = "v0.1" ]; then
-            MODEL=linear
+            MODEL="linear"
             EXTRA_ARGS=""
           else
-            MODEL=ridge
+            MODEL="ridge"
             EXTRA_ARGS="--alpha 30"
           fi
+
           echo "Training model=$MODEL for TAG=$TAG"
-          python src/train.py --model $MODEL $EXTRA_ARGS
+          python src/train.py --model "$MODEL" $EXTRA_ARGS
+
           echo "---- metrics ----"
           cat models/metrics.json || true
           echo "---- model_version ----"
@@ -79,33 +84,43 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image (no training inside)
+        shell: bash
         run: |
-          TAG='${{ steps.vars.outputs.tag }}'
+          TAG="${{ steps.vars.outputs.tag }}"
           docker build --no-cache -t $IMAGE:${TAG} -t $IMAGE:latest .
 
-      - name: Smoke test container (run local image; do NOT pull)
+      - name: Smoke test container (run local image)
+        shell: bash
         run: |
           set -e
-          TAG='${{ steps.vars.outputs.tag }}'
+          TAG="${{ steps.vars.outputs.tag }}"
           docker run -d -p ${PORT}:${PORT} --name svc $IMAGE:${TAG}
+
+          echo "Waiting for container health..."
           for i in {1..30}; do
             sleep 1
             if curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null; then break; fi
           done
+
+          echo "== /health =="
           curl -fsS "http://127.0.0.1:${PORT}/health"
+          echo "== /predict =="
           curl -fsS -X POST "http://127.0.0.1:${PORT}/predict" \
             -H "Content-Type: application/json" \
             -d '{"age":0.02,"sex":-0.044,"bmi":0.06,"bp":-0.03,"s1":-0.02,"s2":0.03,"s3":-0.02,"s4":0.02,"s5":0.02,"s6":-0.001}' | jq .
+
           docker rm -f svc
 
       - name: Push image
+        shell: bash
         run: |
-          TAG='${{ steps.vars.outputs.tag }}'
+          TAG="${{ steps.vars.outputs.tag }}"
           docker push $IMAGE:${TAG}
           docker push $IMAGE:latest
 
       - name: Read metrics
         id: m
+        shell: bash
         run: |
           echo "rmse=$(jq -r '.rmse' models/metrics.json)" >> $GITHUB_OUTPUT
           if [ -f models/model_version.txt ]; then
