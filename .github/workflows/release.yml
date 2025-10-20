@@ -3,11 +3,10 @@ name: Release (train, docker, GHCR, notes)
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*'            # e.g. v0.1, v0.2
   release:
     types: [published]
   workflow_dispatch:
-
 
 permissions:
   contents: write
@@ -22,20 +21,55 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    permissions:
+      contents: write
+      packages: write
+
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      - name: Train full model
+      - name: Resolve TAG
+        id: vars
+        shell: bash
         run: |
-          python src/train.py --model ridge --alpha 30
-          cat models/metrics.json
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          elif [ -n "${GITHUB_REF_NAME}" ]; then
+            echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          fi
+          echo "Resolved TAG=$(sed -n 's/^tag=//p' $GITHUB_OUTPUT)"
+
+      - name: Install system tools (jq, curl)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq curl
+
+      - name: Install deps & Train (choose model by tag)
+        run: |
+          python -m pip install -U pip
+          pip install -r requirements.txt
+          TAG='${{ steps.vars.outputs.tag }}'
+          if [ "$TAG" = "v0.1" ]; then
+            MODEL=linear
+            EXTRA_ARGS=""
+          else
+            MODEL=ridge
+            EXTRA_ARGS="--alpha 30"
+          fi
+          echo "Training model=$MODEL for TAG=$TAG"
+          python src/train.py --model $MODEL $EXTRA_ARGS
+          echo "---- metrics ----"
+          cat models/metrics.json || true
+          echo "---- model_version ----"
+          cat models/model_version.txt || true
+          ls -l models
 
       - name: Login GHCR
         uses: docker/login-action@v3
@@ -43,35 +77,51 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build image (trains again inside build; OK for reproducibility)
+
+      - name: Build image (no training inside)
         run: |
-          TAG=${GITHUB_REF_NAME}
-          docker build -t $IMAGE:${TAG} -t $IMAGE:latest .
+          TAG='${{ steps.vars.outputs.tag }}'
+          docker build --no-cache -t $IMAGE:${TAG} -t $IMAGE:latest .
+
       - name: Smoke test container
         run: |
-          TAG=${GITHUB_REF_NAME}
+          set -e
+          TAG='${{ steps.vars.outputs.tag }}'
+          docker pull $IMAGE:$TAG
           docker run -d -p ${PORT}:${PORT} --name svc $IMAGE:${TAG}
-          for i in {1..30}; do sleep 1; curl -fsS "http://127.0.0.1:${PORT}/health" && break || true; done
+          # 最多等 30 秒直到 /health 可用
+          for i in {1..30}; do
+            sleep 1
+            if curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null; then break; fi
+          done
           curl -fsS "http://127.0.0.1:${PORT}/health"
-          curl -s -X POST "http://127.0.0.1:${PORT}/predict" \
+          curl -fsS -X POST "http://127.0.0.1:${PORT}/predict" \
             -H "Content-Type: application/json" \
             -d '{"age":0.02,"sex":-0.044,"bmi":0.06,"bp":-0.03,"s1":-0.02,"s2":0.03,"s3":-0.02,"s4":0.02,"s5":0.02,"s6":-0.001}' | jq .
           docker rm -f svc
+
       - name: Push image
         run: |
-          TAG=${GITHUB_REF_NAME}
+          TAG='${{ steps.vars.outputs.tag }}'
           docker push $IMAGE:${TAG}
           docker push $IMAGE:latest
+
       - name: Read metrics
         id: m
         run: |
           echo "rmse=$(jq -r '.rmse' models/metrics.json)" >> $GITHUB_OUTPUT
-          echo "model_version=$(cat models/model_version.txt)" >> $GITHUB_OUTPUT
-      - name: Create Release
+          if [ -f models/model_version.txt ]; then
+            echo "model_version=$(cat models/model_version.txt)" >> $GITHUB_OUTPUT
+          else
+            echo "model_version=${{ steps.vars.outputs.tag }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        if: ${{ github.event_name != 'release' }}
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: Release ${{ steps.vars.outputs.tag }}
           body: |
             ## Metrics
             - RMSE: ${{ steps.m.outputs.rmse }}

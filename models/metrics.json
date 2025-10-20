@@ -1,3 +1,11 @@
 {
-  "rmse": 54.461217375612414
+  "rmse": 53.777300528275106,
+  "model": "ridge",
+  "alpha": 1.0,
+  "rf_estimators": null,
+  "rf_max_depth": null,
+  "train_size": 353,
+  "val_size": 89,
+  "train_time_s": 0.009176,
+  "infer_ms_per_row": 0.018845
 }
