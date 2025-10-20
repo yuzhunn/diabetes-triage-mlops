@@ -2,7 +2,12 @@ name: Release (train, docker, GHCR, notes)
 
 on:
   push:
-    tags: [ 'v*' ]
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+  workflow_dispatch:
+
 
 permissions:
   contents: write
