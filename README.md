@@ -55,18 +55,18 @@ curl.exe http://127.0.0.1:8000/health
 ```
 Response:
 ```json
-{"status":"ok","model_version":"unknown"}
+{"status": "ok", "model_version": "v0.2"}
 ```
 
 ### Prediction
 ```bash
-curl.exe -X POST http://127.0.0.1:8000/predict ^
-  -H "Content-Type: application/json" ^
-  -d "{\"age\":0.02,\"sex\":-0.044,\"bmi\":0.06,\"bp\":-0.03,\"s1\":-0.02,\"s2\":0.03,\"s3\":-0.02,\"s4\":0.02,\"s5\":0.02,\"s6\":-0.001}"
+curl -X POST http://127.0.0.1:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"age":0.02,"sex":-0.044,"bmi":0.06,"bp":-0.03,"s1":-0.02,"s2":0.03,"s3":-0.02,"s4":0.02,"s5":0.02,"s6":-0.001}'
 ```
 Response:
 ```json
-{"prediction": 147.53}
+{"prediction": 198.75}
 ```
 
 ---
@@ -84,6 +84,14 @@ Or pull release images:
 docker pull ghcr.io/yuzhunn/diabetes-triage-mlops:v0.1
 docker pull ghcr.io/yuzhunn/diabetes-triage-mlops:v0.2
 ```
+
+Run specific version (e.g. v0.2):
+
+docker run -d -p 8002:8000 ghcr.io/yuzhunn/diabetes-triage-mlops:v0.2
+
+Then test:
+
+curl http://127.0.0.1:8002/health
 
 ---
 
